@@ -1,0 +1,14 @@
+.search {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-top: 20px;
+}
+
+.favorites {
+    margin-top: 20px;
+}
+
+.results {
+    margin-top: 20px;
+}
