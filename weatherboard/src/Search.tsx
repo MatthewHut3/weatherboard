@@ -1,4 +1,4 @@
-import React, { useState, type JSX } from 'react'
+import React, { useState, useEffect, type JSX } from 'react'
 import './Search.css'
 import 'closest-match'
 import { closestMatch } from 'closest-match'
@@ -22,17 +22,44 @@ const cities: CityInfo[] = [
 
 function Search() {
     const [query, setQuery] = useState('')
+    const [searchResults, setSearchResults] = useState<CityInfo[]>([])
+    const [loading, setLoading] = useState(false)
+
+    useEffect(() => {
+        if (query.trim() === '') {
+            setSearchResults([])
+            return
+        }
+
+        setLoading(true)
+        newSearch(query).then(results => {
+            setSearchResults(results)
+            setLoading(false)
+        }).catch(error => {
+            console.error('Search failed:', error)
+            setSearchResults([])
+            setLoading(false)
+        })
+    }, [query])
+
+    const firstResult = searchResults.length > 0 ? searchResults[0] : null
 
     return (
         <React.Fragment>
-            
+
             <div className="search">
                 <input
                     type="text"
                     placeholder="Search..."
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
+                    onKeyUp={(e) => {
+                        if (e.key === 'Enter') {
+                            setQuery(e.currentTarget.value)
+                        }
+                    }}
                 />
+
             </div>
             <div className="results-columns">
                 <data className="favorites">
@@ -54,7 +81,9 @@ function Search() {
 
                 <div className="results">
                     <h2>Search Results</h2>
-                    {makeCityCard(getResults(query).length > 0 ? getResults(query)[0] : { id: 0, name: '', temperature: '', condition: '' })}
+                    {loading && <p>Loading...</p>}
+                    {!loading && firstResult && makeCityCard(firstResult)}
+                    {!loading && !firstResult && query && <p>No results found</p>}
                 </div>
             </div>
         </React.Fragment>
@@ -109,6 +138,58 @@ function makeCityCard(city: CityInfo): JSX.Element {
 
             </table>
     )
+}
+
+    interface InitCityInfo {
+        name: string
+        lat: string
+        lon: string
+    }
+
+function getResultsAPI (query: string): Promise<InitCityInfo[]> {
+    const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}`
+
+    return fetch(url)
+        .then((response) => {
+            if (!response.ok) {
+                throw new Error(`Request failed with status ${response.status}`)
+            }
+            return response.json() as Promise<{ results?: InitCityInfo[] }>
+        })
+        .then((data) => data.results ?? [])
+        .catch((error) => {
+            console.error('Error fetching city data:', error)
+            return []
+        })
+}
+
+function getWeatherAPI (lat: string, lon: string): Promise<{ temperature: number, weathercode: number }> {
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${encodeURIComponent(lat)}&longitude=${encodeURIComponent(lon)}&current_weather=true`
+
+    return fetch(url)
+        .then((response) => {
+            if (!response.ok) {
+                throw new Error(`Request failed with status ${response.status}`)
+            }
+            return response.json() as Promise<{ current_weather: { temperature: number, weathercode: number } }>
+        })
+        .then((data) => data.current_weather)
+        .catch((error) => {
+            console.error('Error fetching weather data:', error)
+            return { temperature: 0, weathercode: 0 }
+        })
+}
+
+async function newSearch(query: string): Promise<CityInfo[]> {
+    const cities = await getResultsAPI(query)
+    const weatherPromises = cities.map((city) => getWeatherAPI(city.lat, city.lon).then((weather) => ({
+        id: Math.floor(Math.random() * 1000000), // Generate a random ID for the city
+        name: city.name,
+        temperature: weather.temperature.toString(),
+        condition: weather.weathercode.toString()
+    }))
+    )
+    return await Promise.all(weatherPromises)
 }
 
 export default Search
