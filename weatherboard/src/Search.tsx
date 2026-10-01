@@ -138,7 +138,7 @@ function makeCityCard(city: CityInfo): JSX.Element {
                 <td>{city.condition}</td>
             </tr> 
 
-            </table>
+        </table>
     )
 }
 
@@ -156,9 +156,17 @@ function getResultsAPI (query: string): Promise<InitCityInfo[]> {
             if (!response.ok) {
                 throw new Error(`Request failed with status ${response.status}`)
             }
-            return response.json() as Promise<{ results?: InitCityInfo[] }>
+            return response.json() as Promise<{ results?: Array<{ name: string, latitude: number, longitude: number }> }>
         })
-        .then((data) => data.results ?? [])
+        .then((data) => {
+            console.log(`Parsed data for ${query}:`, data)
+            const firstResult = data.results?.[0]
+            return firstResult ? [{
+                name: firstResult.name,
+                lat: firstResult.latitude.toString(),
+                lon: firstResult.longitude.toString()
+            }] : []
+        })
         .catch((error) => {
             console.error('Error fetching city data:', error)
             return []
