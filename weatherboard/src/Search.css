@@ -6,9 +6,31 @@
 }
 
 .favorites {
+    margin: 20px;
+    padding: 20px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+}
+
+.city-card {
+
+    margin: 20px;
+    padding: 20px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+}
+
+.results-columns {
+    display: flex;
+    justify-content: space-between;
+    width: 100%;
+    max-width: 800px;
     margin-top: 20px;
 }
 
-.results {
-    margin-top: 20px;
+input[type="text"] {
+    padding: 10px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    width: 300px;
 }
