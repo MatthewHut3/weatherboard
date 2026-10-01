@@ -195,11 +195,106 @@ async function newSearch(query: string): Promise<CityInfo[]> {
     const weatherPromises = cities.map((city) => getWeatherAPI(city.lat, city.lon).then((weather) => ({
         id: Math.floor(Math.random() * 1000000), // Generate a random ID for the city
         name: city.name,
-        temperature: weather.temperature.toString(),
-        condition: weather.weathercode.toString()
+        temperature: `${weather.temperature}°C`,
+        condition: weatherCodetoCondition(weather.weathercode)
     }))
     )
     return await Promise.all(weatherPromises)
+}
+
+function weatherCodetoCondition(code: number): string {
+// 0	Clear sky
+// 1	Mainly clear
+// 2	Partly cloudy
+// 3	Overcast
+// 45	Fog
+// 48	Depositing rime fog
+// 51	Light drizzle
+// 53	Moderate drizzle
+// 55	Dense drizzle
+// 56	Light freezing drizzle
+// 57	Dense freezing drizzle
+// 61	Slight rain
+// 63	Moderate rain
+// 65	Heavy rain
+// 66	Light freezing rain
+// 67	Heavy freezing rain
+// 71	Slight snowfall
+// 73	Moderate snowfall
+// 75	Heavy snowfall
+// 77	Snow grains
+// 80	Slight rain showers
+// 81	Moderate rain showers
+// 82	Violent rain showers
+// 85	Slight snow showers
+// 86	Heavy snow showers
+// 95	Thunderstorm
+// 96	Thunderstorm with slight hail *
+// 97	Heavy thunderstorm
+// 99	Thunderstorm with heavy hail *
+
+    switch (code) {
+        case 0:
+            return "Clear sky"
+        case 1:
+            return "Mainly clear"
+        case 2:
+            return "Partly cloudy"
+        case 3:
+            return "Overcast"
+        case 45:
+            return "Fog"
+        case 48:
+            return "Depositing rime fog"
+        case 51:
+            return "Light drizzle"
+        case 53:
+            return "Moderate drizzle"
+        case 55:
+            return "Dense drizzle"
+        case 56:
+            return "Light freezing drizzle"
+        case 57:
+            return "Dense freezing drizzle"
+        case 61:
+            return "Slight rain"
+        case 63:
+            return "Moderate rain"
+        case 65:
+            return "Heavy rain"
+        case 66:
+            return "Light freezing rain"
+        case 67:
+            return "Heavy freezing rain"
+        case 71:
+            return "Slight snowfall"
+        case 73:
+            return "Moderate snowfall"
+        case 75:
+            return "Heavy snowfall"
+        case 77:
+            return "Snow grains"
+        case 80:
+            return "Slight rain showers"
+        case 81:
+            return "Moderate rain showers"
+        case 82:
+            return "Violent rain showers"
+        case 85:
+            return "Slight snow showers"
+        case 86:
+            return "Heavy snow showers"
+        case 95:
+            return "Thunderstorm"
+        case 96:
+            return "Thunderstorm with slight hail"
+        case 97:
+            return "Heavy thunderstorm"
+        case 99:
+            return "Thunderstorm with heavy hail"
+        default:
+            return "Unknown condition"
+    }
 }
 
 export default Search
