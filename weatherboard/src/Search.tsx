@@ -21,6 +21,7 @@ const cities: CityInfo[] = [
 ]
 
 function Search() {
+    const [inputValue, setInputValue] = useState('')
     const [query, setQuery] = useState('')
     const [searchResults, setSearchResults] = useState<CityInfo[]>([])
     const [loading, setLoading] = useState(false)
@@ -51,11 +52,12 @@ function Search() {
                 <input
                     type="text"
                     placeholder="Search..."
-                    value={query}
-                    onChange={(e) => setQuery(e.target.value)}
-                    onKeyUp={(e) => {
+                    value={inputValue}
+                    onChange={(e) => setInputValue(e.target.value)}
+                    onKeyDown={(e) => {
                         if (e.key === 'Enter') {
                             setQuery(e.currentTarget.value)
+                            console.log(`Searching for: ${e.currentTarget.value}`)
                         }
                     }}
                 />
