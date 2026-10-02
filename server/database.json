@@ -1,0 +1,13 @@
+{
+  "defaultEnv": "development",
+  "development": {
+    "driver": "pg",
+    "host": "localhost",
+    "port": 5432,
+    "database": "weatherboard",
+    "user": "postgres",
+    "password": "devpassword",
+    "migrationsDir": "migrations",
+    "migrationFileLanguage": "sql"
+  }
+}

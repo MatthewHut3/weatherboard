@@ -92,36 +92,6 @@ function Search() {
     )
 }
 
-function getResults(query: string): CityInfo[] {
-    if (query.trim() === '') {
-        return []
-    }
-
-    const matchingCities = cities.filter((city) =>
-        city.name.toLowerCase().includes(query.toLowerCase()),
-    )
-
-    if (matchingCities.length === 0) {
-        return []
-    }
-
-    const closestCityName = closestMatch(
-        query,
-        matchingCities.map((city) => city.name),
-    )
-
-    const closestCity = Array.isArray(closestCityName)
-        ? closestCityName[0]
-        : closestCityName
-
-    if (closestCity) {
-        return matchingCities.filter(
-            (city) => city.name.toLowerCase() === closestCity.toLowerCase(),
-        )
-    } else {
-        return []
-    }
-}
 
 function makeCityCard(city: CityInfo): JSX.Element {
     return (
