@@ -7,14 +7,18 @@
   "type": "commonjs",
   "main": "app.js",
   "scripts": {
+    "dev": "ts-node src/app.ts",
+    "build": "tsc",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "dependencies": {
-    "express": "^5.2.1"
+    "express": "^5.2.1",
+    "pg-promise": "^12.7.1"
   },
   "devDependencies": {
     "@types/express": "^5.0.6",
     "@types/node": "^26.6.4",
-    "typescript": "^7.0.2"
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3"
   }
 }
