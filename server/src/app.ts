@@ -6,6 +6,7 @@ import {UsersRoutes} from './users/users.routes.config';
 import bcrypt from 'bcrypt';
 import pool from './db';
 import jsonwebtoken from 'jsonwebtoken';
+import cors from 'cors';
 
 const jwtSecret = process.env.JWT_SECRET;
 
@@ -15,6 +16,15 @@ if (!jwtSecret) {
 
 const app: Express = express();
 app.use(express.json());
+//app.use(cors());
+
+var corsOptions = {
+  origin: 'http://localhost:5173',
+  methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
+  allowedHeaders: 'Content-Type,Authorization',
+};
+
+app.use(cors(corsOptions));
 
 const usersRoutes = new UsersRoutes(app);
 usersRoutes.configureRoutes();

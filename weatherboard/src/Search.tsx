@@ -87,6 +87,28 @@ function Search() {
                     {!loading && firstResult && makeCityCard(firstResult)}
                     {!loading && !firstResult && query && <p>No results found</p>}
                 </div>
+                <div className="login">
+                    <h2>Login</h2>
+                    <form onSubmit={(e) => {
+                        e.preventDefault()
+                        const formData = new FormData(e.currentTarget)
+                        const username = formData.get('username') as string
+                        const password = formData.get('password') as string
+                        attemptLogin(username, password).catch((error) => {
+                            console.error('Login failed:', error)
+                        })
+                    }}>
+                        <div>
+                            <label htmlFor="username">Username:</label>
+                            <input type="text" id="username" name="username" required />
+                        </div>
+                        <div>
+                            <label htmlFor="password">Password:</label>
+                            <input type="password" id="password" name="password" required />
+                        </div>
+                        <button type="submit">Login</button>
+                    </form>
+                </div>
             </div>
         </React.Fragment>
     )
@@ -117,6 +139,23 @@ function makeCityCard(city: CityInfo): JSX.Element {
         lat: string
         lon: string
     }
+
+function attemptLogin(username: string, password: string): Promise<string> {
+    return fetch('http://localhost:3000/api/auth/login', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ username, password })
+    })
+    .then((response) => {
+        if (!response.ok) {
+            throw new Error(`Request failed with status ${response.status}`)
+        }
+        return response.json()
+    })
+    .then((data) => data.token)
+}
 
 function getResultsAPI (query: string): Promise<InitCityInfo[]> {
     const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}`
