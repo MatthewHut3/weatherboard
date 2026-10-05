@@ -1,8 +1,17 @@
+import dotenv from 'dotenv';
+dotenv.config();
 
 import express, { type Express, type Request, type Response } from 'express';
 import {UsersRoutes} from './users/users.routes.config';
 import bcrypt from 'bcrypt';
 import pool from './db';
+import jsonwebtoken from 'jsonwebtoken';
+
+const jwtSecret = process.env.JWT_SECRET;
+
+if (!jwtSecret) {
+  throw new Error('JWT_SECRET is not defined');
+}
 
 const app: Express = express();
 app.use(express.json());
@@ -45,15 +54,20 @@ app.route('/api/auth/login')
     }
 
     try {
-      const hashedPassword = await bcrypt.hash(password, 10);
-      const result = await pool.query('SELECT * FROM users WHERE username = $1 AND password_hash = $2', [username, hashedPassword]);
-
+      const result = await pool.query('SELECT password_hash,id FROM users WHERE username = $1', [username]);
       if (result.rows.length === 0) {
-        return res.status(401).send({ message: 'Invalid credentials' });
+        return res.status(401).send({ message: 'Invalid username or password' });
       }
-      else if (result.rows.length === 1) {
-        return res.status(200).send({ token: 'your-jwt-token' });
+
+      const isMatch = await bcrypt.compare(password, result.rows[0].password_hash);
+      if (isMatch) {
+        const token = jsonwebtoken.sign({ userId: result.rows[0].id }, jwtSecret, { expiresIn: '1h' });
+        return res.status(200).send({ token });
+      } else {
+        return res.status(401).send({ message: 'Invalid username or password' });
       }
+      
+      
     } catch (error: unknown) {
       console.error('Error logging in user:', error);
       return res.status(500).send({ message: 'Error logging in user' });
