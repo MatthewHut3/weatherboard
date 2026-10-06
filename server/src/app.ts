@@ -108,6 +108,22 @@ app.route('/api/add-favorite')
     }
   });
 
+app.route('/api/favorites')
+  .get(requireAuth, async (req: Request, res: Response) => {
+    const userId = res.locals.userId;
+
+    try {
+      const result = await pool.query(
+        'SELECT * FROM favorite_cities WHERE user_id = $1 ORDER BY created_at DESC',
+        [userId]
+      );
+      return res.status(200).send(result.rows);
+    } catch (error: unknown) {
+      console.error('Error fetching favorite cities:', error);
+      return res.status(500).send({ message: 'Error fetching favorite cities' });
+    }
+  });
+
 
 
 app.listen(3000);
