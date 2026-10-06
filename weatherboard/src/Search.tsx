@@ -7,11 +7,23 @@ if (!apiUrl) {
     console.warn('VITE_API_URL is not defined; auth requests will fail until you add it to the frontend .env file.')
 }
 
+interface MessageResponse {
+    message?: string
+}
+
+interface AuthSuccessResponse {
+    token: string
+}
+
 interface CityInfo {
     id: number
     name: string
     temperature: string
     condition: string
+}
+
+function getStoredToken(): string | null {
+    return window.localStorage.getItem('userToken')
 }
 
 let favorites: number[] = [
@@ -29,6 +41,16 @@ function Search() {
     const [query, setQuery] = useState('')
     const [searchResults, setSearchResults] = useState<CityInfo[]>([])
     const [loading, setLoading] = useState(false)
+    const [token, setToken] = useState<string | null>(() => getStoredToken())
+
+    useEffect(() => {
+        if (token) {
+            window.localStorage.setItem('userToken', token)
+            return
+        }
+
+        window.localStorage.removeItem('userToken')
+    }, [token])
 
     useEffect(() => {
         if (query.trim() === '') {
@@ -91,32 +113,56 @@ function Search() {
                     {!loading && firstResult && makeCityCard(firstResult)}
                     {!loading && !firstResult && query && <p>No results found</p>}
                 </div>
-                <LoginComponent />
+                <LoginComponent token={token} onTokenChange={setToken} />
             </div>
         </React.Fragment>
     )
 }
 
-function LoginComponent() {
+interface LoginComponentProps {
+    token: string | null
+    onTokenChange: (nextToken: string | null) => void
+}
+
+interface StatusMessage {
+    message: string
+    type: 'error' | 'success'
+}
+
+function LoginComponent({ token, onTokenChange }: LoginComponentProps): JSX.Element {
     const [username, setUsername] = useState('')
     const [password, setPassword] = useState('')
-    const [token, setToken] = useState<string | null>(null)
     const [isRegistering, setIsRegistering] = useState(false)
+    const [isSubmitting, setIsSubmitting] = useState(false)
+    const [statusMessage, setStatusMessage] = useState<StatusMessage | null>(null)
 
-    const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    const handleSubmit = async (e: React.SubmitEvent<HTMLFormElement>) => {
         e.preventDefault()
+
+        if (isSubmitting) {
+            return
+        }
+
+        setIsSubmitting(true)
+        setStatusMessage(null)
 
         try {
             if (isRegistering) {
                 await createAccount(username, password)
                 setIsRegistering(false)
+                setPassword('')
+                setStatusMessage({ message: 'Account created successfully.', type: 'success' })
                 return
             }
 
             const newToken = await attemptLogin(username, password)
-            setToken(newToken)
+            setPassword('')
+            onTokenChange(newToken)
         } catch (error) {
-            console.error('Authentication failed:', error)
+            const message = error instanceof Error ? error.message : 'Error occurred during login or registration.'
+            setStatusMessage({ message, type: 'error' })
+        } finally {
+            setIsSubmitting(false)
         }
     }
 
@@ -126,7 +172,7 @@ function LoginComponent() {
                 <h2>Logged in</h2>
                 <a href="#" onClick={(e) => {
                     e.preventDefault()
-                    setToken(null)
+                    onTokenChange(null)
                 }}>
                     Logout
                 </a>
@@ -161,11 +207,22 @@ function LoginComponent() {
                         required
                     />
                 </div>
-                <button type="submit">{isRegistering ? 'Register' : 'Login'}</button>
+                <button type="submit" disabled={isSubmitting}>
+                    {isSubmitting ? (isRegistering ? 'Registering...' : 'Logging in...') : (isRegistering ? 'Register' : 'Login')}
+                </button>
             </form>
+            {statusMessage && (
+                <p
+                    role={statusMessage.type === 'error' ? 'alert' : 'status'}
+                    className={statusMessage.type === 'success' ? 'success' : 'error'}
+                >
+                    {statusMessage.message}
+                </p>
+            )}
             <a href="#" onClick={(e) => {
                 e.preventDefault()
                 setIsRegistering((current) => !current)
+                setStatusMessage(null) // Clear any previous status messages when switching modes
             }}>
                 {isRegistering ? 'Back to login' : 'Create an account'}
             </a>
@@ -200,36 +257,52 @@ interface InitCityInfo {
     lon: string
 }
 
-function createAccount(username: string, password: string): Promise<void> {
-    return fetch(`${apiUrl}/auth/register`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ username, password })
-    })
-        .then((response) => {
-            if (!response.ok) {
-                throw new Error(`Request failed with status ${response.status}`)
-            }
+async function createAccount(username: string, password: string): Promise<void> {
+    let response: Response
+    try {
+        response = await fetch(`${apiUrl}/auth/register`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ username, password })
         })
+    } catch {
+        throw new Error('Unable to reach the server while creating the account.')
+    }
+
+    if (!response.ok) {
+        const data: MessageResponse = await response.json().catch(() => ({}))
+        throw new Error(data.message ?? `${response.status} ${response.statusText}`)
+    }
 }
 
-function attemptLogin(username: string, password: string): Promise<string> {
-    return fetch(`${apiUrl}/auth/login`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ username, password })
-    })
-        .then((response) => {
-            if (!response.ok) {
-                throw new Error(`Request failed with status ${response.status}`)
-            }
-            return response.json()
+async function attemptLogin(username: string, password: string): Promise<string> {
+    let response: Response
+    try {
+        response = await fetch(`${apiUrl}/auth/login`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ username, password })
         })
-        .then((data) => data.token)
+    } catch {
+        throw new Error('Unable to reach the server while logging in.')
+    }
+
+    if (!response.ok) {
+        const data: MessageResponse = await response.json().catch(() => ({}))
+        throw new Error(data.message ?? `${response.status} ${response.statusText}`)
+    }
+
+    const data: AuthSuccessResponse = await response.json()
+
+    if (typeof data.token !== 'string' || data.token.trim() === '') {
+        throw new Error('Login response did not include a valid token.')
+    }
+
+    return data.token
 }
 
 function getResultsAPI(query: string): Promise<InitCityInfo[]> {
