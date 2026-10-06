@@ -2,17 +2,12 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 import express, { type Express, type Request, type Response } from 'express';
-import {UsersRoutes} from './users/users.routes.config';
 import bcrypt from 'bcrypt';
 import pool from './db';
 import jsonwebtoken from 'jsonwebtoken';
 import cors from 'cors';
-
-const jwtSecret = process.env.JWT_SECRET;
-
-if (!jwtSecret) {
-  throw new Error('JWT_SECRET is not defined');
-}
+import jwtSecret from './jwt';
+import requireAuth from '../middleware/requireAuth';
 
 const app: Express = express();
 app.use(express.json());
@@ -25,9 +20,6 @@ var corsOptions = {
 };
 
 app.use(cors(corsOptions));
-
-const usersRoutes = new UsersRoutes(app);
-usersRoutes.configureRoutes();
 
 // POST /api/auth/register { username, password } -> 201
 app.route('/api/auth/register')
@@ -52,7 +44,8 @@ app.route('/api/auth/register')
       console.error('Error registering user:', error);
       return res.status(500).send({ message: 'Error registering user' });
     }
-  });
+  }
+  );
 
 // POST /api/auth/login { username, password } -> 200 { token }
 app.route('/api/auth/login')
@@ -71,18 +64,50 @@ app.route('/api/auth/login')
 
       const isMatch = await bcrypt.compare(password, result.rows[0].password_hash);
       if (isMatch) {
+        if (typeof jwtSecret !== 'string' || jwtSecret.length === 0) {
+          console.error('JWT secret is not configured');
+          return res.status(500).send({ message: 'Authentication is not configured' });
+        }
+
         const token = jsonwebtoken.sign({ userId: result.rows[0].id }, jwtSecret, { expiresIn: '1h' });
         return res.status(200).send({ token });
       } else {
         return res.status(401).send({ message: 'Invalid username or password' });
       }
-      
-      
+
+
     } catch (error: unknown) {
       console.error('Error logging in user:', error);
       return res.status(500).send({ message: 'Error logging in user' });
     }
+  }
+  );
+
+
+app.route('/api/add-favorite')
+  .post(requireAuth, async (req: Request, res: Response) => {
+    const userId = res.locals.userId;
+    const { city_name, location, latitude, longitude } = req.body ?? {};
+    const cityName = typeof city_name === 'string' ? city_name : location;
+
+    if (typeof cityName !== 'string' || cityName.trim() === '' ||
+        typeof latitude !== 'number' || !Number.isFinite(latitude) ||
+        typeof longitude !== 'number' || !Number.isFinite(longitude)) {
+      return res.status(400).send({ message: 'City name, latitude, and longitude are required' });
+    }
+
+    try {
+      await pool.query(
+        'INSERT INTO favorite_cities(user_id, city_name, latitude, longitude) VALUES($1, $2, $3, $4)',
+        [userId, cityName.trim(), latitude, longitude]
+      );
+      return res.status(201).send({ message: 'Favorite city added successfully' });
+    } catch (error: unknown) {
+      console.error('Error adding favorite city:', error);
+      return res.status(500).send({ message: 'Error adding favorite location' });
+    }
   });
+
 
 
 app.listen(3000);

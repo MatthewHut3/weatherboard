@@ -1,7 +1,7 @@
 -- Up Migration
 CREATE TABLE favorite_cities (
   id SERIAL PRIMARY KEY,
-  user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+  user_id INTEGER REFERENCES users(id) ON DELETE CASCADE NOT NULL,
   city_name TEXT NOT NULL,
   latitude REAL NOT NULL,
   longitude REAL NOT NULL,
