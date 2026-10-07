@@ -34,6 +34,9 @@ function Search() {
     const [searchResults, setSearchResults] = useState<CityInfo[]>([])
     const [loading, setLoading] = useState(false)
     const [token, setToken] = useState<string | null>(() => getStoredToken())
+    const [favoritesRefreshKey, setFavoritesRefreshKey] = useState(0)
+    const [isAddingFavorite, setIsAddingFavorite] = useState(false)
+    const [favoriteActionError, setFavoriteActionError] = useState<string | null>(null)
 
     useEffect(() => {
         if (token) {
@@ -61,6 +64,24 @@ function Search() {
         })
     }, [query])
 
+    const handleAddFavorite = async (city: InitCityInfo): Promise<void> => {
+        if (!token) {
+            return
+        }
+
+        setIsAddingFavorite(true)
+        setFavoriteActionError(null)
+
+        try {
+            await addFavoriteCity(token, city)
+            setFavoritesRefreshKey((currentKey) => currentKey + 1)
+        } catch (error) {
+            setFavoriteActionError(error instanceof Error ? error.message : 'Unable to add favorite city.')
+        } finally {
+            setIsAddingFavorite(false)
+        }
+    }
+
     const firstResult = searchResults.length > 0 ? searchResults[0] : null
 
     return (
@@ -82,12 +103,17 @@ function Search() {
 
             </div>
             <div className="results-columns">
-                <FavoritesComponent token={token} />
+                <FavoritesComponent token={token} refreshKey={favoritesRefreshKey} />
 
                 <div className="results">
                     <h2>Search Results</h2>
                     {loading && <p>Loading...</p>}
-                    {!loading && firstResult && makeCityCard(firstResult, { token })}
+                    {!loading && firstResult && makeCityCard(firstResult, {
+                        token,
+                        onAddFavorite: handleAddFavorite,
+                        isAddingFavorite
+                    })}
+                    {favoriteActionError && <p role="alert">{favoriteActionError}</p>}
                     {!loading && !firstResult && query && <p>No results found</p>}
                 </div>
                 <LoginComponent token={token} onTokenChange={setToken} />
@@ -103,6 +129,13 @@ interface LoginComponentProps {
 
 interface FavoritesComponentProps {
     token: string | null
+    refreshKey: number
+}
+
+interface CityCardProps {
+    token: string | null
+    onAddFavorite: (city: InitCityInfo) => Promise<void>
+    isAddingFavorite: boolean
 }
 
 interface StatusMessage {
@@ -110,10 +143,11 @@ interface StatusMessage {
     type: 'error' | 'success'
 }
 
-function FavoritesComponent({ token }: FavoritesComponentProps): JSX.Element {
+function FavoritesComponent({ token, refreshKey }: FavoritesComponentProps): JSX.Element {
     const [favorites, setFavorites] = useState<FavoriteCity[]>([])
     const [isLoading, setIsLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
+    const [weatherData, setWeatherData] = useState<Record<string, { temperature: string; condition: string }>>({})
 
     useEffect(() => {
         let isCurrentRequest = true
@@ -149,7 +183,31 @@ function FavoritesComponent({ token }: FavoritesComponentProps): JSX.Element {
         return () => {
             isCurrentRequest = false
         }
-    }, [token])
+    }, [token, refreshKey])
+
+    // grab weather data for favs
+    useEffect(() => {
+        if (favorites.length === 0) {
+            setWeatherData({})
+            return
+        }
+
+        Promise.all(
+            favorites.map((city) =>
+                getWeatherAPI(city.latitude.toString(), city.longitude.toString())
+                    .then((weather) => ({
+                        cityId: city.id,
+                        temperature: `${weather.temperature}°C`,
+                        condition: weatherCodetoCondition(weather.weathercode)
+                    }))
+            )
+        ).then((results) => {
+            const weatherMap = Object.fromEntries(
+                results.map((w) => [w.cityId.toString(), { temperature: w.temperature, condition: w.condition }])
+            )
+            setWeatherData(weatherMap)
+        })
+    }, [favorites])
 
     if (!token) {
         return (<p>Login to view favorites</p>)
@@ -161,16 +219,25 @@ function FavoritesComponent({ token }: FavoritesComponentProps): JSX.Element {
             {isLoading && <p>Loading favorites...</p>}
             {!isLoading && error && <p role="alert">{error}</p>}
             {!isLoading && !error && favorites.length === 0 && <p>No favorites found</p>}
-            {!isLoading && !error && favorites.map((city) => (
-                <div key={city.id} className="favorite">
-                    <h3>{city.city_name}</h3>
-                    <p>Latitude: {city.latitude}, Longitude: {city.longitude}</p>
-                </div>
-            ))}
+            {!isLoading && !error && favorites.map((city) => {
+                const weather = weatherData[city.id.toString()]
+                return (
+                    <div key={city.id} className="favorite">
+                        <h3>{city.city_name}</h3>
+                        {weather ? (
+                            <>
+                                <p>Temperature: {weather.temperature}</p>
+                                <p>Condition: {weather.condition}</p>
+                            </>
+                        ) : (
+                            <p>Loading weather...</p>
+                        )}
+                    </div>
+                )
+            })}
         </div>
     )
 }
-
 
 function LoginComponent({ token, onTokenChange }: LoginComponentProps): JSX.Element {
     const [username, setUsername] = useState('')
@@ -275,25 +342,32 @@ function LoginComponent({ token, onTokenChange }: LoginComponentProps): JSX.Elem
 
 
 
-function makeCityCard(city: CityInfo, { token }: FavoritesComponentProps): JSX.Element {
+function makeCityCard(city: CityInfo, { token, onAddFavorite, isAddingFavorite }: CityCardProps): JSX.Element {
 
     return (
-        <table className="city-card">
-            <tr>
-                <th>Name</th>
-                <th>Temperature</th>
-                <th>Condition</th>
-            </tr>
-
-            {token && <button onClick={() => addFavoriteCity(token,city)}>Add to favorites</button>}
-
-            <tr>
-                <td>{city.name}</td>
-                <td>{city.temperature}</td>
-                <td>{city.condition}</td>
-            </tr>
-
-        </table>
+        <>
+            {token && (
+                <button onClick={() => onAddFavorite(city)} disabled={isAddingFavorite}>
+                    {isAddingFavorite ? 'Adding...' : 'Add to favorites'}
+                </button>
+            )}
+            <table className="city-card">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Temperature</th>
+                        <th>Condition</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>{city.name}</td>
+                        <td>{city.temperature}</td>
+                        <td>{city.condition}</td>
+                    </tr>
+                </tbody>
+            </table>
+        </>
     )
 }
 
