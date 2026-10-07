@@ -108,6 +108,27 @@ app.route('/api/add-favorite')
     }
   });
 
+app.route('/api/delete-favorite')
+  .delete(requireAuth, async (req: Request, res: Response) => {
+    const userId = res.locals.userId;
+    const { favorite_id } = req.body ?? {};
+
+    if (typeof favorite_id !== 'number' || !Number.isFinite(favorite_id)) {
+      return res.status(400).send({ message: 'Favorite ID required' });
+    }
+
+    try {
+      await pool.query(
+        'DELETE FROM favorite_cities WHERE id = $1 AND user_id = $2',
+        [favorite_id, userId]
+      );
+      return res.status(200).send({ message: 'Favorite city deleted successfully' });
+    } catch (error: unknown) {
+      console.error('Error deleting favorite:', error);
+      return res.status(500).send({ message: 'Error deleting favorite location' });
+    }
+  });
+
 app.route('/api/favorites')
   .get(requireAuth, async (req: Request, res: Response) => {
     const userId = res.locals.userId;
