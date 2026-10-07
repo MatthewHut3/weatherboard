@@ -90,22 +90,7 @@ function Search() {
 
             </div>
             <div className="results-columns">
-                <data className="favorites">
-                    <h2>Favorites</h2>
-                    {favorites.length === 0 ? (
-                        <p>No favorites found</p>
-                    ) : (
-                        favorites.map((id) => {
-                            const city = cities.find((city) => city.id === id)
-                            return city ? (
-                                <div key={city.id} className="favorite">
-                                    <h3>{city.name}</h3>
-                                    <p>{city.temperature}</p>
-                                    <p>Condition: {city.condition}</p>
-                                </div>) : null
-                        })
-                    )}
-                </data>
+                <FavoritesComponent token={token} onTokenChange={setToken}/>
 
                 <div className="results">
                     <h2>Search Results</h2>
@@ -124,10 +109,47 @@ interface LoginComponentProps {
     onTokenChange: (nextToken: string | null) => void
 }
 
+interface FavoritesComponentProps {
+    token: string | null
+    onTokenChange: (nextToken: string | null) => void
+}
+
 interface StatusMessage {
     message: string
     type: 'error' | 'success'
 }
+
+function FavoritesComponent({ token, onTokenChange }: FavoritesComponentProps): JSX.Element {
+    
+
+    if (!token) {
+        //dont return anything as not logged in
+
+        return (<p>Login to view favorites</p>)
+    } else {
+        // display favs if token avaliable
+
+        return (
+            <data className="favorites">
+                <h2>Favorites</h2>
+                {favorites.length === 0 ? (
+                    <p>No favorites found</p>
+                ) : (
+                    favorites.map((id) => {
+                        const city = cities.find((city) => city.id === id)
+                        return city ? (
+                            <div key={city.id} className="favorite">
+                                <h3>{city.name}</h3>
+                                <p>{city.temperature}</p>
+                                <p>Condition: {city.condition}</p>
+                            </div>) : null
+                    })
+                )}
+            </data>
+        )
+    }
+}
+
 
 function LoginComponent({ token, onTokenChange }: LoginComponentProps): JSX.Element {
     const [username, setUsername] = useState('')
