@@ -20,21 +20,13 @@ interface CityInfo {
     name: string
     temperature: string
     condition: string
+    lat: string
+    lon: string
 }
 
 function getStoredToken(): string | null {
     return window.localStorage.getItem('userToken')
 }
-
-let favorites: number[] = [
-    1
-]
-
-const cities: CityInfo[] = [
-    { id: 1, name: 'New York', temperature: '25°C', condition: "Sunny" },
-    { id: 2, name: 'Los Angeles', temperature: '30°C', condition: "Cloudy" },
-    { id: 3, name: 'London', temperature: '20°C', condition: "Rainy" },
-]
 
 function Search() {
     const [inputValue, setInputValue] = useState('')
@@ -90,12 +82,12 @@ function Search() {
 
             </div>
             <div className="results-columns">
-                <FavoritesComponent token={token} onTokenChange={setToken}/>
+                <FavoritesComponent token={token} />
 
                 <div className="results">
                     <h2>Search Results</h2>
                     {loading && <p>Loading...</p>}
-                    {!loading && firstResult && makeCityCard(firstResult)}
+                    {!loading && firstResult && makeCityCard(firstResult, { token })}
                     {!loading && !firstResult && query && <p>No results found</p>}
                 </div>
                 <LoginComponent token={token} onTokenChange={setToken} />
@@ -111,7 +103,6 @@ interface LoginComponentProps {
 
 interface FavoritesComponentProps {
     token: string | null
-    onTokenChange: (nextToken: string | null) => void
 }
 
 interface StatusMessage {
@@ -119,35 +110,65 @@ interface StatusMessage {
     type: 'error' | 'success'
 }
 
-function FavoritesComponent({ token, onTokenChange }: FavoritesComponentProps): JSX.Element {
-    
+function FavoritesComponent({ token }: FavoritesComponentProps): JSX.Element {
+    const [favorites, setFavorites] = useState<FavoriteCity[]>([])
+    const [isLoading, setIsLoading] = useState(false)
+    const [error, setError] = useState<string | null>(null)
+
+    useEffect(() => {
+        let isCurrentRequest = true
+
+        if (!token) {
+            setFavorites([])
+            setError(null)
+            setIsLoading(false)
+            return
+        }
+
+        setIsLoading(true)
+        setError(null)
+
+        getFavorites(token)
+            .then((results) => {
+                if (isCurrentRequest) {
+                    setFavorites(results)
+                }
+            })
+            .catch((requestError: unknown) => {
+                if (isCurrentRequest) {
+                    setError(requestError instanceof Error ? requestError.message : 'Unable to fetch favorite cities.')
+                    setFavorites([])
+                }
+            })
+            .finally(() => {
+                if (isCurrentRequest) {
+                    setIsLoading(false)
+                }
+            })
+
+        return () => {
+            isCurrentRequest = false
+        }
+    }, [token])
 
     if (!token) {
-        //dont return anything as not logged in
-
         return (<p>Login to view favorites</p>)
-    } else {
-        // display favs if token avaliable
-
-        return (
-            <data className="favorites">
-                <h2>Favorites</h2>
-                {favorites.length === 0 ? (
-                    <p>No favorites found</p>
-                ) : (
-                    favorites.map((id) => {
-                        const city = cities.find((city) => city.id === id)
-                        return city ? (
-                            <div key={city.id} className="favorite">
-                                <h3>{city.name}</h3>
-                                <p>{city.temperature}</p>
-                                <p>Condition: {city.condition}</p>
-                            </div>) : null
-                    })
-                )}
-            </data>
-        )
     }
+
+    return (
+        <div className="favorites">
+            <h2>Favorites</h2>
+            {isLoading && <p>Loading favorites...</p>}
+            {!isLoading && error && <p role="alert">{error}</p>}
+            {!isLoading && !error && favorites.length === 0 && <p>No favorites found</p>}
+            {!isLoading && !error && favorites.map((city) => (
+                <div key={city.id} className="favorite">
+                    <h3>{city.city_name}</h3>
+                    <p>Latitude: {city.latitude}, Longitude: {city.longitude}</p>
+                </div>
+            ))}
+        </div>
+    )
 }
 
 
@@ -254,7 +275,8 @@ function LoginComponent({ token, onTokenChange }: LoginComponentProps): JSX.Elem
 
 
 
-function makeCityCard(city: CityInfo): JSX.Element {
+function makeCityCard(city: CityInfo, { token }: FavoritesComponentProps): JSX.Element {
+
     return (
         <table className="city-card">
             <tr>
@@ -262,6 +284,8 @@ function makeCityCard(city: CityInfo): JSX.Element {
                 <th>Temperature</th>
                 <th>Condition</th>
             </tr>
+
+            {token && <button onClick={() => addFavoriteCity(token,city)}>Add to favorites</button>}
 
             <tr>
                 <td>{city.name}</td>
@@ -278,6 +302,73 @@ interface InitCityInfo {
     lat: string
     lon: string
 }
+
+interface FavoriteCity {
+    id: number
+    user_id: number
+    city_name: string
+    latitude: number
+    longitude: number
+    created_at: string
+}
+
+async function getFavorites(token: string): Promise<FavoriteCity[]> {
+    if (!apiUrl) {
+        throw new Error('VITE_API_URL is not configured.')
+    }
+
+    let response: Response
+    try {
+        response = await fetch(`${apiUrl}/favorites`, {
+            method: 'GET',
+            headers: {
+                Authorization: `Bearer ${token}`
+            }
+        })
+    } catch {
+        throw new Error('Unable to reach the server while fetching favorite cities.')
+    }
+
+    if (!response.ok) {
+        const data: MessageResponse = await response.json().catch(() => ({}))
+        throw new Error(data.message ?? `${response.status} ${response.statusText}`)
+    }
+
+    return response.json() as Promise<FavoriteCity[]>
+}
+
+export async function addFavoriteCity(token: string, city: InitCityInfo): Promise<void> {
+
+    const latitude = Number(city.lat)
+    const longitude = Number(city.lon)
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+        throw new Error('Favorite city must have valid latitude and longitude.')
+    }
+
+    let response: Response
+    try {
+        response = await fetch(`${apiUrl}/add-favorite`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${token}`
+            },
+            body: JSON.stringify({
+                city_name: city.name,
+                latitude,
+                longitude
+            })
+        })
+    } catch {
+        throw new Error('Unable to reach the server while adding a favorite city.')
+    }
+
+    if (!response.ok) {
+        const data: MessageResponse = await response.json().catch(() => ({}))
+        throw new Error(data.message ?? `${response.status} ${response.statusText}`)
+    }
+}
+
 
 async function createAccount(username: string, password: string): Promise<void> {
     let response: Response
@@ -375,7 +466,9 @@ async function newSearch(query: string): Promise<CityInfo[]> {
         id: Math.floor(Math.random() * 1000000), // Generate a random ID for the city
         name: city.name,
         temperature: `${weather.temperature}°C`,
-        condition: weatherCodetoCondition(weather.weathercode)
+        condition: weatherCodetoCondition(weather.weathercode),
+        lat: city.lat,
+        lon: city.lon
     }))
     )
     return await Promise.all(weatherPromises)
