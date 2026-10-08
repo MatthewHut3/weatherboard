@@ -1,0 +1,13 @@
+{
+  "tags": {
+    "allowUnknownTags": true,
+    "dictionaries": ["jsdoc", "closure"]
+  },
+  "source": {
+    "include": ["server/src"],
+    "includePattern": "\\.(jsx?|tsx?)$",
+    "excludePattern": "(node_modules|out)"
+  },
+  "sourceType": "module",
+  "parserToolName": "babel"
+}

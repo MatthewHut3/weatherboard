@@ -21,7 +21,7 @@ var corsOptions = {
 
 app.use(cors(corsOptions));
 
-// POST /api/auth/register { username, password } -> 201
+
 app.route('/api/auth/register')
   .post(async (req: express.Request, res: express.Response) => {
     const { username, password } = req.body ?? {};
@@ -47,7 +47,13 @@ app.route('/api/auth/register')
   }
   );
 
-// POST /api/auth/login { username, password } -> 200 { token }
+/**
+* Authenticate user and return JWT token
+* @function
+* @param {string} req.body.username - The username to authenticate
+* @param {string} req.body.password - The password to authenticate
+* @returns {object} JWT token on success or error message
+*/
 app.route('/api/auth/login')
   .post(async (req: express.Request, res: express.Response) => {
     const { username, password } = req.body ?? {};
