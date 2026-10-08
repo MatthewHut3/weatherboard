@@ -84,7 +84,7 @@ app.route('/api/auth/login')
   );
 
 
-app.route('/api/add-favorite')
+app.route('/api/favorites/')
   .post(requireAuth, async (req: Request, res: Response) => {
     const userId = res.locals.userId;
     const { city_name, location, latitude, longitude } = req.body ?? {};
@@ -108,21 +108,46 @@ app.route('/api/add-favorite')
     }
   });
 
-app.route('/api/delete-favorite')
+function parseNumber(value: string): number | null {
+      const isnum = /^\d+$/.test(value);
+
+      if (!isnum) {
+        return null;
+      }
+
+      const num: number = parseInt(value);
+      
+      if (num <= 0) {
+        return null;
+      }
+      
+      return num;
+    }
+
+app.route('/api/favorites/:id')
   .delete(requireAuth, async (req: Request, res: Response) => {
     const userId = res.locals.userId;
-    const { favorite_id } = req.body ?? {};
+    const { id } = req.params ?? {};
+
+    if (typeof id !== 'string' ) {
+      return res.status(400).send({ message: 'Favorite ID required' });
+    }
+
+    const favorite_id = parseNumber(id)
 
     if (typeof favorite_id !== 'number' || !Number.isFinite(favorite_id)) {
       return res.status(400).send({ message: 'Favorite ID required' });
     }
 
     try {
-      await pool.query(
+      const result = await pool.query(
         'DELETE FROM favorite_cities WHERE id = $1 AND user_id = $2',
         [favorite_id, userId]
       );
-      return res.status(200).send({ message: 'Favorite city deleted successfully' });
+      if (!result.rowCount|| result.rowCount < 1) {
+        return res.status(404).send({ message: 'Error deleting favorite location' });
+      }
+      return res.status(204).send();
     } catch (error: unknown) {
       console.error('Error deleting favorite:', error);
       return res.status(500).send({ message: 'Error deleting favorite location' });

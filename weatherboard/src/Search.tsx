@@ -37,6 +37,8 @@ function Search() {
     const [favoritesRefreshKey, setFavoritesRefreshKey] = useState(0)
     const [isAddingFavorite, setIsAddingFavorite] = useState(false)
     const [favoriteActionError, setFavoriteActionError] = useState<string | null>(null)
+    const [isDeletingFavorite, setIsDeletingFavorite] = useState(false)
+    const [favoriteDeleteActionError, setFavoriteDeleteActionError] = useState<string | null>(null)
 
     useEffect(() => {
         if (token) {
@@ -82,6 +84,25 @@ function Search() {
         }
     }
 
+    const handleDeleteFavorite = async (favoriteId: number): Promise<void> => {
+        if (!token) {
+            return
+        }
+
+        setIsDeletingFavorite(true)
+        setFavoriteDeleteActionError(null)
+
+        try {
+            await deleteFavoriteCity(token, favoriteId)
+            setFavoritesRefreshKey((currentKey) => currentKey + 1)
+        } catch (error) {
+            setFavoriteDeleteActionError(error instanceof Error ? error.message : 'Unable to remove favorite city.')
+        } finally {
+            setIsDeletingFavorite(false)
+        }
+    }
+
+
     const firstResult = searchResults.length > 0 ? searchResults[0] : null
 
     return (
@@ -103,7 +124,7 @@ function Search() {
 
             </div>
             <div className="results-columns">
-                <FavoritesComponent token={token} refreshKey={favoritesRefreshKey} />
+                <FavoritesComponent token={token} refreshKey={favoritesRefreshKey} onDeleteFavorite={handleDeleteFavorite} isDeletingFavorite={isDeletingFavorite} />
 
                 <div className="results">
                     <h2>Search Results</h2>
@@ -130,6 +151,8 @@ interface LoginComponentProps {
 interface FavoritesComponentProps {
     token: string | null
     refreshKey: number
+    onDeleteFavorite: (favorite: number) => Promise<void>
+    isDeletingFavorite: boolean
 }
 
 interface CityCardProps {
@@ -143,7 +166,7 @@ interface StatusMessage {
     type: 'error' | 'success'
 }
 
-function FavoritesComponent({ token, refreshKey }: FavoritesComponentProps): JSX.Element {
+function FavoritesComponent({ token, refreshKey, onDeleteFavorite, isDeletingFavorite }: FavoritesComponentProps): JSX.Element {
     const [favorites, setFavorites] = useState<FavoriteCity[]>([])
     const [isLoading, setIsLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
@@ -224,6 +247,9 @@ function FavoritesComponent({ token, refreshKey }: FavoritesComponentProps): JSX
                 return (
                     <div key={city.id} className="favorite">
                         <h3>{city.city_name}</h3>
+                        <button onClick={() => onDeleteFavorite(city.id)} disabled={isDeletingFavorite}>
+                            {isDeletingFavorite ? 'Removing...' : 'Remove from favorites'}
+                        </button>
                         {weather ? (
                             <>
                                 <p>Temperature: {weather.temperature}</p>
@@ -411,6 +437,25 @@ async function getFavorites(token: string): Promise<FavoriteCity[]> {
     return response.json() as Promise<FavoriteCity[]>
 }
 
+async function deleteFavoriteCity(token: string, favoriteId: number): Promise<void> {
+    let response: Response
+    try {
+        response = await fetch(`${apiUrl}/favorites/${favoriteId}`, {
+            method: 'DELETE',
+            headers: {
+                Authorization: `Bearer ${token}`
+            }
+        })
+    } catch {
+        throw new Error('Unable to reach the server while deleting a favorite city.')
+    }
+
+    if (!response.ok) {
+        const data: MessageResponse = await response.json().catch(() => ({}))
+        throw new Error(data.message ?? `${response.status} ${response.statusText}`)
+    }
+}
+
 export async function addFavoriteCity(token: string, city: InitCityInfo): Promise<void> {
 
     const latitude = Number(city.lat)
@@ -421,7 +466,7 @@ export async function addFavoriteCity(token: string, city: InitCityInfo): Promis
 
     let response: Response
     try {
-        response = await fetch(`${apiUrl}/add-favorite`, {
+        response = await fetch(`${apiUrl}/favorites`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
